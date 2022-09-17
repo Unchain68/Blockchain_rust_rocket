@@ -1,5 +1,7 @@
 mod blockchain;
-use blockchain::{Transaction, Blockchain, TxInfo};
+use std::str::from_boxed_utf8_unchecked;
+
+use blockchain::{Transaction, Blockchain, TxInfo, Block};
 use rocket::response::status::NotFound;
 use rocket::{routes, Request};
 use rocket::tokio::{task};
@@ -39,9 +41,32 @@ async fn transaction_broadcast(data: String) -> Json<&'static Blockchain> {
     }
 }
 
+#[post("/receive-new-block", format = "json", data = "<data>")]
+fn receive_new_block(data: String) -> Json<Value> {
+    unsafe {
+        let new_block: Block = from_str(&data).unwrap();
+        let last_block = new_blockchain.get_last_block();
+        let correct_hash = last_block.hash == new_block.previous_blockhash;
+        let correct_index = last_block.index + 1 == new_block.index;
+
+        if correct_hash && correct_index {
+            new_blockchain.chain.push(new_block.clone());
+            new_blockchain.pending_transaction = vec![];
+            Json(json!({
+                "note": "New block received and accepted",
+                "newBlock": new_block
+            }))
+        } else {
+            Json(json!({
+                "note": "New block rejected",
+                "newBlock": new_block
+            }))
+        }
+    }
+}
 
 #[launch]
 fn rocket() -> _ {
-    rocket::build().mount("/hello",routes![get_blockchain,transaction,transaction_broadcast])
+    rocket::build().mount("/hello",routes![get_blockchain,transaction,transaction_broadcast,receive_new_block])
 }
 

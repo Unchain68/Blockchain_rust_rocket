@@ -14,15 +14,15 @@ pub struct Blockchain {
     pub network_nodes : Vec<String>
 }
 
-#[derive(Serialize,Clone)]
+#[derive(Serialize,Clone,Deserialize,Debug)]
 #[serde(crate = "rocket::serde")]
 pub struct Block {
-    index: usize,
-    timestamp: u128,
-    transactions: Vec<Transaction>,
-    nonce: u128,
-    hash: String,
-    previous_blockhash: String
+    pub index: usize,
+    pub timestamp: u128,
+    pub transactions: Vec<Transaction>,
+    pub nonce: u128,
+    pub hash: String,
+    pub previous_blockhash: String
 }
 
 impl fmt::Display for Block {
