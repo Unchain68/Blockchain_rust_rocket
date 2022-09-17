@@ -9,7 +9,9 @@ use std::io;
 #[serde(crate = "rocket::serde")]
 pub struct Blockchain {
     pub chain: Vec<Block>,
-    pub pending_transaction: Vec<Transaction>
+    pub pending_transaction: Vec<Transaction>,
+    pub current_node_url : &'static str,
+    pub network_nodes : Vec<String>
 }
 
 #[derive(Serialize,Clone)]
@@ -44,6 +46,14 @@ impl fmt::Display for Transaction {
         write!(f,"{} {} {} {}",self.amount, self.sender, self.recipient, self.transaction_id);
         Ok(())
     }
+}
+
+#[derive(Serialize,Clone,Deserialize,Debug)]
+#[serde(crate = "rocket::serde")]
+pub struct TxInfo {
+    pub amount: u128,
+    pub sender: String,
+    pub recipient: String
 }
 
 impl Blockchain {
