@@ -65,6 +65,21 @@ fn receive_new_block(data: String) -> Json<Value> {
     }
 }
 
+#[post("/register-node", format = "json", data = "<data>")]
+fn register_node(data: String) -> Json<Value> {
+    unsafe {
+        let new_node_url = data;
+        let node_not_already_present = new_blockchain.network_nodes.contains(&new_node_url); 
+        let not_current_node = new_blockchain.current_node_url != new_node_url;
+        if node_not_already_present && not_current_node {
+            new_blockchain.network_nodes.push(new_node_url);
+        }
+        Json(json!({
+            "note": "New node registered succesfully."
+        }))
+    }
+}
+
 #[launch]
 fn rocket() -> _ {
     rocket::build().mount("/hello",routes![get_blockchain,transaction,transaction_broadcast,receive_new_block])
