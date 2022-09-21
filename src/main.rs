@@ -1,5 +1,7 @@
 mod blockchain;
+
 use blockchain::{Transaction, Blockchain, TxInfo, BlockInfo, Block, RequestOpitons};
+use rocket::http::hyper::request;
 use rocket::response::status::NotFound;
 use rocket::serde::{Serialize, json ,json::{Json, serde_json::to_string}, Deserialize};
 
@@ -8,14 +10,14 @@ use rocket::tokio::{task};
 use uuid::Uuid;
 use reqwest;
 use rocket::futures::future::{try_join_all, TryJoinAll};
-use reqwest::Url;
+
 
 use rocket::serde::json::serde_json::{json, Value, from_str};
 
 #[macro_use] extern crate rocket;
 
 static mut new_blockchain: Blockchain = blockchain::Blockchain { chain: Vec::<blockchain::Block>::new(), pending_transaction: Vec::<Transaction>::new(), current_node_url: "" , network_nodes: Vec::<String>::new() };
-static mut node_address: String = Uuid::new_v4().to_string();
+
 
 #[get("/blockchain")]
 fn get_blockchain() -> Json<&'static Blockchain> {
@@ -37,7 +39,7 @@ fn transaction(transaction: Json<Transaction>) -> Json<&'static Blockchain> {
 
 
 #[get("/mine")]
-async fn mine() -> Json<Block> {
+async fn mine() -> Json<Value> {
     unsafe {
         let last_block = new_blockchain.get_last_block();
         let previous_blockhash = last_block.hash;
@@ -53,49 +55,50 @@ async fn mine() -> Json<Block> {
         let client = reqwest::Client::new();
 
         for (i, network_node_url) in new_blockchain.network_nodes.iter().enumerate() {
-            // let request_options = json!({
-            //     "uri": network_node_url.push_str("/receive-new-block"),
-            //     "method": "POST".to_string(),
-            //     "body": Block {
-            //         index: new_block.index.clone(),
-            //         timestamp: new_block.timestamp.clone(),
-            //         transactions: new_block.transactions.clone(),
-            //         nonce: new_block.nonce.clone(),
-            //         hash: new_block.hash.clone(),
-            //         previous_blockhash: new_block.previous_blockhash.clone()
-            //     },
-            //     "json": true
-            // });
-
-            let request_options = RequestOpitons {
-                uri: network_node_url.to_string() + "/receive-new-block",
-                method: "POST".to_string(),
+            let request_options_block = RequestOpitons {
+                uri: network_node_url.to_owned() + "/receive-new-block",
+                method: "POST".to_owned(),
                 body: new_block.clone(),
                 json: true
             };
 
-            let s = serde_json::to_string(&request_options).unwrap();
-            let url = Url::parse();
-            let res = client.post(request_options["uri"])
-                .json(&request_options)
+            let res = client.post(request_options_block.uri.clone())
+                .json(&request_options_block)
                 .send()
-                .await?
-                .json()
-                .await?;
-            
+                .await.unwrap()
+                .json::<Block>()
+                .await;
         }
 
-        let data: TryJoinAll<Result<reqwest::Response, reqwest::Error>> = try_join_all(res);
+        let node_address: String = Uuid::new_v4().to_string();
 
+        let request_options_transactions = RequestOpitons {
+            uri: new_blockchain.current_node_url.to_owned() + "/transaction/broadcast",
+            method: "POST".to_owned(),
+            body: TxInfo {
+                amount: 12,
+                sender: "00".to_owned(),
+                recipient: node_address
+            },
+            json: true
+        };
 
+        let res = client.post(request_options_transactions.uri.clone())
+                .json(&request_options_transactions)
+                .send()
+                .await.unwrap()
+                .json::<TxInfo>()
+                .await;
         
-
 
         // new_blockchain.create_new_transaction(10, "00".to_string(), "recipient".to_string());
         
         // let new_block = new_blockchain.create_new_block(nonce, previous_blockhash, blockhash);
         
-        Json(new_block)
+        Json(json!({
+            "note": "New block mined & broadcast successfully",
+            "block": new_block
+        }))
     }
 }
 
@@ -109,14 +112,14 @@ async fn transaction_broadcast(data: String) -> Json<&'static Blockchain> {
         
         let mut request_promises = vec![];
         for (index, network_node_url) in new_blockchain.network_nodes.iter().enumerate() {
-            let request_options = RequestOpitons {
+            let request_options_block = RequestOpitons {
                 uri: network_node_url.to_string() + "/transaction",
                 method: "POST".to_string(),
                 body: new_transaction.clone(),
                 json: true
             };
 
-            request_promises.push(request_options);
+            request_promises.push(request_options_block);
         }
 
 
@@ -163,6 +166,14 @@ fn register_node(data: String) -> Json<Value> {
         Json(json!({
             "note": "New node registered succesfully."
         }))
+    }
+}
+
+#[get("/consensus")]
+fn consensus() -> Json<&'static Blockchain> {
+    unsafe {
+        new_blockchain.create_new_block(1000, "ASDFASFAFAFDAF".to_string(), "ASDFAFASDFAFDFSADF".to_string());
+        Json(&new_blockchain)
     }
 }
 
